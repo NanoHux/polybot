@@ -8,18 +8,44 @@ export async function getMarkets(_req: Request, res: Response) {
         orderBy: { createdAt: 'desc' },
         take: 1,
       },
+      orders: true,
     },
+    orderBy: { id: 'asc' },
   });
+
+  if (!markets.length) {
+    console.warn('[getMarkets] no markets found in DB');
+  } else {
+    const missingConfig = markets.filter((m) => !m.incentiveConfigs.length);
+    if (missingConfig.length) {
+      console.warn(
+        `[getMarkets] markets missing incentiveConfigs: ${missingConfig
+          .map((m) => m.marketId)
+          .join(', ')}`
+      );
+    }
+  }
 
   res.json(
     markets.map((m) => ({
       id: m.id,
       marketId: m.marketId,
-      question: m.question,
-      status: m.status,
-      minIncentiveSize: m.incentiveConfigs[0]?.minIncentiveSize ?? null,
-      maxIncentiveSpread: m.incentiveConfigs[0]?.maxIncentiveSpread ?? null,
-      rewardPoolTotal: m.incentiveConfigs[0]?.rewardPoolTotal ?? null,
+      question: m.question ?? `Market ${m.marketId}`,
+      status: m.status ?? 'open',
+      minIncentiveSize: m.incentiveConfigs[0]?.minIncentiveSize?.toString() ?? '0',
+      maxIncentiveSpread: m.incentiveConfigs[0]?.maxIncentiveSpread?.toString() ?? '0',
+      expectedApr: m.incentiveConfigs[0]?.rewardPoolTotal
+        ? Number(m.incentiveConfigs[0]?.rewardPoolTotal ?? 0)
+        : 0,
+      myLiquidityShare: m.orders.length
+        ? Math.min(
+            1,
+            m.orders.reduce((sum, o) => sum + Number(o.size ?? 0), 0) / 1000
+          )
+        : 0,
+      epochEnd: m.incentiveConfigs[0]?.epochEnd
+        ? m.incentiveConfigs[0]?.epochEnd?.toISOString()
+        : null,
     }))
   );
 }

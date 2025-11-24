@@ -1,10 +1,11 @@
-import { useEffect } from 'react';
+import { useEffect, useMemo } from 'react';
 import {
   Alert,
   Button,
   Card,
   Col,
   ConfigProvider,
+  Empty,
   Layout,
   List,
   Row,
@@ -21,6 +22,7 @@ import {
   ReloadOutlined,
   SafetyCertificateOutlined,
   RiseOutlined,
+  ClockCircleOutlined,
 } from '@ant-design/icons';
 import { useDataStore } from './store/useDataStore';
 import { MarketAprChart, RewardsChart } from './components/Charts';
@@ -40,11 +42,30 @@ export default function App() {
     stopBot,
   } = useDataStore();
 
+  // 自动轮询：每 10 秒刷新一次数据
   useEffect(() => {
     fetchAll();
-    const interval = setInterval(fetchAll, 5000); // Poll every 5 seconds
+    const interval = setInterval(fetchAll, 10000);
     return () => clearInterval(interval);
   }, [fetchAll]);
+
+  const lastUpdatedLabel = useMemo(() => {
+    if (!dashboard?.lastUpdated) return 'Never';
+    const d = new Date(dashboard.lastUpdated);
+    return d.toLocaleString();
+  }, [dashboard?.lastUpdated]);
+
+  const sortedMarkets = useMemo(() => {
+    // 按 expectedApr 降序排序，其次按 question
+    return [...markets].sort((a, b) => {
+      const aprA = a.expectedApr ?? 0;
+      const aprB = b.expectedApr ?? 0;
+      if (aprA !== aprB) return aprB - aprA;
+      return (a.question ?? '').localeCompare(b.question ?? '');
+    });
+  }, [markets]);
+
+  const systemAlertText = dashboard?.systemAlert ?? error ?? null;
 
   return (
     <ConfigProvider
@@ -68,32 +89,48 @@ export default function App() {
             padding: '0 24px',
           }}
         >
-          <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-            <SafetyCertificateOutlined
-              style={{ fontSize: '24px', color: '#1890ff' }}
-            />
-            <Title level={3} style={{ margin: 0, color: '#fff' }}>
-              Polybot AI Agent
-            </Title>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+            <SafetyCertificateOutlined style={{ fontSize: 24, color: '#1890ff' }} />
+            <div>
+              <Title level={3} style={{ margin: 0, color: '#fff' }}>
+                Polybot AI Agent
+              </Title>
+              <Space size="small">
+                <Tag color={dashboard?.running ? 'success' : 'error'}>
+                  {dashboard?.running ? 'SYSTEM ONLINE' : 'SYSTEM OFFLINE'}
+                </Tag>
+                <Space size={4}>
+                  <ClockCircleOutlined style={{ color: '#999' }} />
+                  <Text type="secondary" style={{ fontSize: 12 }}>
+                    Last updated: {lastUpdatedLabel}
+                  </Text>
+                </Space>
+              </Space>
+            </div>
           </div>
+
           <Space>
-            <Tag color={dashboard?.running ? 'success' : 'error'}>
-              {dashboard?.running ? 'SYSTEM ONLINE' : 'SYSTEM OFFLINE'}
-            </Tag>
             <Button
               icon={<ReloadOutlined />}
               onClick={() => fetchAll()}
               loading={loading}
-            />
+            >
+              Refresh
+            </Button>
           </Space>
         </Header>
 
-        <Content style={{ padding: '24px', maxWidth: '1600px', margin: '0 auto' }}>
+        <Content
+          style={{
+            padding: '24px',
+            width: '100%',
+          }}
+        >
           <Space direction="vertical" size="large" style={{ width: '100%' }}>
-            {error && (
+            {systemAlertText && (
               <Alert
                 message="System Alert"
-                description={error}
+                description={systemAlertText}
                 type="error"
                 showIcon
                 closable
@@ -144,7 +181,12 @@ export default function App() {
                 <Card bordered={false} hoverable>
                   <Space direction="vertical" style={{ width: '100%' }}>
                     <Text type="secondary">Bot Control</Text>
-                    <Space style={{ width: '100%', justifyContent: 'space-between' }}>
+                    <Space
+                      style={{
+                        width: '100%',
+                        justifyContent: 'space-between',
+                      }}
+                    >
                       <Button
                         type="primary"
                         icon={<PlayCircleOutlined />}
@@ -172,13 +214,29 @@ export default function App() {
             {/* Charts Row */}
             <Row gutter={[16, 16]}>
               <Col xs={24} lg={12}>
-                <Card title="Liquidity Rewards Trends" bordered={false}>
-                  <RewardsChart />
+                <Card
+                  title="Liquidity Rewards Trends"
+                  bordered={false}
+                  bodyStyle={{ minHeight: 260 }}
+                >
+                  {dashboard?.rewardHistory?.length ? (
+                    <RewardsChart rewards={dashboard.rewardHistory} />
+                  ) : (
+                    <Empty description="No rewards history yet" />
+                  )}
                 </Card>
               </Col>
               <Col xs={24} lg={12}>
-                <Card title="Market APR Analysis" bordered={false}>
-                  <MarketAprChart />
+                <Card
+                  title="Market APR Analysis"
+                  bordered={false}
+                  bodyStyle={{ minHeight: 260 }}
+                >
+                  {dashboard?.aprSeries?.length ? (
+                    <MarketAprChart aprs={dashboard.aprSeries} />
+                  ) : (
+                    <Empty description="No APR data yet" />
+                  )}
                 </Card>
               </Col>
             </Row>
@@ -191,14 +249,19 @@ export default function App() {
                     <Space>
                       <LineChartOutlined />
                       <span>Active Markets</span>
-                      <Tag color="blue">{markets.length}</Tag>
+                      <Tag color="blue">{sortedMarkets.length}</Tag>
                     </Space>
                   }
                   bordered={false}
                 >
                   <List
-                    dataSource={markets}
+                    dataSource={sortedMarkets}
                     loading={loading}
+                    locale={{
+                      emptyText: (
+                        <Empty description="No active markets" />
+                      ),
+                    }}
                     pagination={{ pageSize: 5 }}
                     renderItem={(item) => (
                       <List.Item
@@ -207,8 +270,13 @@ export default function App() {
                             Min: {item.minIncentiveSize ?? 'N/A'}
                           </Tag>,
                           <Tag color="purple" key="spread">
-                            Spread: {item.maxIncentiveSpread ?? 'N/A'}
+                            Spread ≤ {item.maxIncentiveSpread ?? 'N/A'}
                           </Tag>,
+                          item.expectedApr != null && (
+                            <Tag color="gold" key="apr">
+                              APR: {item.expectedApr.toFixed(1)}%
+                            </Tag>
+                          ),
                         ]}
                       >
                         <List.Item.Meta
@@ -230,23 +298,44 @@ export default function App() {
                             </div>
                           }
                           title={
-                            <Text strong style={{ color: '#e6f7ff' }}>
-                              {item.question ?? `Market ${item.marketId}`}
-                            </Text>
-                          }
-                          description={
                             <Space size="small">
-                              <Text type="secondary" style={{ fontSize: 12 }}>
-                                ID: {item.marketId}
+                              <Text strong style={{ color: '#e6f7ff' }}>
+                                {item.question ?? `Market ${item.marketId}`}
                               </Text>
                               <Tag
                                 color={
-                                  item.status === 'active' ? 'success' : 'default'
+                                  item.status === 'open'
+                                    ? 'success'
+                                    : item.status === 'resolved'
+                                    ? 'default'
+                                    : 'processing'
                                 }
                                 bordered={false}
+                                style={{ textTransform: 'uppercase' }}
                               >
                                 {item.status}
                               </Tag>
+                            </Space>
+                          }
+                          description={
+                            <Space size="small" wrap>
+                              <Text type="secondary" style={{ fontSize: 12 }}>
+                                ID: {item.marketId}
+                              </Text>
+                              {item.myLiquidityShare != null && (
+                                <Text type="secondary" style={{ fontSize: 12 }}>
+                                  My share:{' '}
+                                  {(item.myLiquidityShare * 100).toFixed(2)}%
+                                </Text>
+                              )}
+                              {item.epochEnd && (
+                                <Text type="secondary" style={{ fontSize: 12 }}>
+                                  Epoch ends:{' '}
+                                  {new Date(
+                                    item.epochEnd
+                                  ).toLocaleString()}
+                                </Text>
+                              )}
                             </Space>
                           }
                         />
@@ -269,6 +358,9 @@ export default function App() {
                   <List
                     dataSource={orders}
                     loading={loading}
+                    locale={{
+                      emptyText: <Empty description="No live orders" />,
+                    }}
                     pagination={{ pageSize: 5 }}
                     renderItem={(item) => (
                       <List.Item>
@@ -289,13 +381,29 @@ export default function App() {
                               )}{' '}
                               {item.outcomeId}
                             </Text>
+                            {item.question && (
+                              <Text
+                                type="secondary"
+                                style={{ fontSize: 12 }}
+                                ellipsis={{ tooltip: item.question }}
+                              >
+                                {item.question}
+                              </Text>
+                            )}
                             <Text type="secondary" style={{ fontSize: 12 }}>
-                              #{item.id} - status: {item.status}
+                              #{item.id} · status: {item.status} ·{' '}
+                              {new Date(item.placedAt).toLocaleString()}
                             </Text>
                           </Space>
                           <div style={{ textAlign: 'right' }}>
-                            <div style={{ fontSize: 16, fontWeight: 'bold' }}>
-                              {item.price}
+                            <div
+                              style={{
+                                fontSize: 16,
+                                fontWeight: 'bold',
+                                color: '#e6f7ff',
+                              }}
+                            >
+                              {item.price.toFixed(3)}
                             </div>
                             <Text type="secondary" style={{ fontSize: 12 }}>
                               Size: {item.size}

@@ -8,6 +8,10 @@ const rewardsService = new RewardsService();
 export async function runMarketSync() {
   try {
     const { markets } = await gammaService.listMarkets();
+    if (!Array.isArray(markets) || markets.length === 0) {
+      console.warn('[runMarketSync] gamma markets empty');
+      return;
+    }
     for (const m of markets) {
       const detail = await gammaService.getMarket(m.id);
       const reward = await rewardsService.getMarketReward(m.id);

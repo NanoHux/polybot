@@ -6,7 +6,7 @@ import {
 } from '../types/api';
 
 const client = axios.create({
-  baseURL: '/api',
+  baseURL: import.meta.env.VITE_API_BASE_URL ?? 'http://localhost:5172/api',
   timeout: 8000,
 });
 
@@ -20,19 +20,13 @@ export const api = {
     return data;
   },
   async getOrders() {
-    const { data } = await client.get<ApiOrder[]>('/orders');
-    return data;
+    const { data } = await client.get<{ orders: ApiOrder[] }>('/orders');
+    return data.orders;
   },
   async startBot() {
-    const { data } = await client.post<{ success: boolean; message?: string }>(
-      '/strategy/start'
-    );
-    return data;
+    await client.post('/strategy/start');
   },
   async stopBot() {
-    const { data } = await client.post<{ success: boolean; message?: string }>(
-      '/strategy/stop'
-    );
-    return data;
+    await client.post('/strategy/stop');
   },
 };

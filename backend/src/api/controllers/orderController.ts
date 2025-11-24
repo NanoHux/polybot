@@ -2,14 +2,32 @@ import { OrderSide, OrderStatus } from '@prisma/client';
 import { Request, Response } from 'express';
 import { prisma } from '../../lib/prisma';
 import { ClobService } from '../../polymarket/clobService';
+import { PlaceOrderSingleRequest } from '../../types/polymarketOrders';
+import { ApiOrder, ApiOrdersResponse } from '../../types/api';
 
 const clobService = new ClobService();
 
-export async function listOrders(_req: Request, res: Response) {
-  const orders = await prisma.order.findMany({
-    orderBy: { placedAt: 'desc' },
-  });
-  res.json(orders);
+export async function getLiveOrders(_req: Request, res: Response) {
+  try {
+    const { orders } = await clobService.listActiveOrders();
+    const data: ApiOrder[] = (orders ?? []).map((o) => ({
+      id: o.id,
+      clobOrderId: o.id,
+      marketId: (o as any).market ?? '',
+      question: null,
+      side: (o as any).side?.toUpperCase() === 'BUY' ? 'BUY' : 'SELL',
+      outcomeId: (o as any).asset_id ?? '',
+      status: (o as any).status ?? 'OPEN',
+      price: Number((o as any).price ?? 0),
+      size: Number((o as any).size ?? (o as any).original_size ?? 0),
+      placedAt: (o as any).createdAt ? new Date((o as any).createdAt).toISOString() : new Date().toISOString(),
+    }));
+    const payload: ApiOrdersResponse = { orders: data };
+    res.json(payload);
+  } catch (err: any) {
+    console.error('[getLiveOrders] error', err?.response?.data || err);
+    res.status(500).json({ error: 'Failed to fetch live orders' });
+  }
 }
 
 export async function createOrder(req: Request, res: Response) {
@@ -26,19 +44,33 @@ export async function createOrder(req: Request, res: Response) {
 
   const normalizedSide = String(side).toUpperCase() === 'BUY' ? 'BUY' : 'SELL';
 
-  const clobOrder = await clobService.createOrder({
-    marketId,
-    outcomeId: outcome,
-    side: normalizedSide,
-    price,
-    size,
-  });
+  // TODO: build SignedOrder per Polymarket spec; placeholder payload here.
+  const clobPayload: PlaceOrderSingleRequest = {
+    order: {
+      salt: '',
+      maker: wallet.address,
+      signer: wallet.address,
+      taker: wallet.address,
+      tokenId: outcome,
+      makerAmount: String(size),
+      takerAmount: String(price),
+      expiration: String(Math.floor(Date.now() / 1000) + 3600),
+      nonce: String(Date.now()),
+      feeRateBps: '0',
+      side: normalizedSide,
+      signature: '',
+    },
+    owner: wallet.address,
+    orderType: 'GTC',
+  };
+
+  const clobOrder = await clobService.createOrder(clobPayload);
 
   const order = await prisma.order.create({
     data: {
       walletId: wallet.id,
       marketId: market.id,
-      clobOrderId: clobOrder.order_id,
+      clobOrderId: clobOrder.orderId,
       outcomeId: outcome,
       side: normalizedSide === 'BUY' ? OrderSide.BUY : OrderSide.SELL,
       price,
@@ -53,7 +85,7 @@ export async function createOrder(req: Request, res: Response) {
 
   res.json({
     orderId: order.id,
-    clobOrderId: clobOrder.order_id,
+    clobOrderId: clobOrder.orderId,
   });
 }
 

@@ -9,8 +9,17 @@ export class GammaService {
   });
 
   async listMarkets(): Promise<GammaMarketsResponse> {
-    const { data } = await this.client.get<GammaMarketsResponse>('/markets');
-    return data;
+    const { data } = await this.client.get<any>('/markets');
+    // If data is an array, wrap it in an object with a 'markets' property
+    if (Array.isArray(data)) {
+      return { markets: data };
+    }
+    // If data already has a 'markets' property, return it as is
+    if (data && Array.isArray(data.markets)) {
+      return data;
+    }
+    // Fallback/Empty
+    return { markets: [] };
   }
 
   async getMarket(id: string): Promise<GammaMarketDetail> {

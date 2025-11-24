@@ -1,5 +1,6 @@
 import * as echarts from 'echarts';
-import React, { useEffect, useRef } from 'react';
+import React, { useEffect, useMemo, useRef } from 'react';
+import { DashboardAprPoint, DashboardRewardPoint } from '../types/api';
 
 interface ChartProps {
   options: echarts.EChartsOption;
@@ -39,8 +40,15 @@ export const BaseChart: React.FC<ChartProps> = ({
   return <div ref={chartRef} style={{ width, height }} />;
 };
 
-export const RewardsChart: React.FC = () => {
-  // Mock data for visualization since we might not have enough historical data yet
+export const RewardsChart: React.FC<{ rewards: DashboardRewardPoint[] }> = ({ rewards }) => {
+  const sorted = useMemo(
+    () =>
+      [...rewards].sort(
+        (a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime()
+      ),
+    [rewards]
+  );
+
   const option: echarts.EChartsOption = {
     title: {
       text: 'Rewards History',
@@ -51,7 +59,7 @@ export const RewardsChart: React.FC = () => {
     },
     xAxis: {
       type: 'category',
-      data: ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'],
+      data: sorted.map((r) => new Date(r.timestamp).toLocaleDateString()),
       axisLine: { lineStyle: { color: '#ccc' } },
     },
     yAxis: {
@@ -61,7 +69,7 @@ export const RewardsChart: React.FC = () => {
     },
     series: [
       {
-        data: [820, 932, 901, 934, 1290, 1330, 1320],
+        data: sorted.map((r) => r.value),
         type: 'line',
         smooth: true,
         areaStyle: {
@@ -91,7 +99,12 @@ export const RewardsChart: React.FC = () => {
   return <BaseChart options={option} />;
 };
 
-export const MarketAprChart: React.FC = () => {
+export const MarketAprChart: React.FC<{ aprs: DashboardAprPoint[] }> = ({ aprs }) => {
+  const filtered = useMemo(
+    () => aprs.filter((a) => a.apr !== null).slice(0, 15),
+    [aprs]
+  );
+
   const option: echarts.EChartsOption = {
     title: {
       text: 'Market APR',
@@ -105,7 +118,8 @@ export const MarketAprChart: React.FC = () => {
     },
     xAxis: {
       type: 'category',
-      data: ['BTC', 'ETH', 'SOL', 'US Election', 'Fed Rate'],
+      data: filtered.map((a) => a.label ?? a.marketId),
+      axisLabel: { interval: 0, rotate: 20 },
       axisLine: { lineStyle: { color: '#ccc' } },
     },
     yAxis: {
@@ -115,7 +129,7 @@ export const MarketAprChart: React.FC = () => {
     },
     series: [
       {
-        data: [120, 200, 150, 80, 70],
+        data: filtered.map((a) => Number(a.apr)),
         type: 'bar',
         itemStyle: {
           color: new echarts.graphic.LinearGradient(0, 0, 0, 1, [

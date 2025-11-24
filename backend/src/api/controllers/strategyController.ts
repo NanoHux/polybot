@@ -7,14 +7,26 @@ import {
   stopBot,
 } from '../../jobs/scheduler';
 
-export function startStrategy(_req: Request, res: Response) {
-  startBot();
-  res.json({ success: true, message: 'Bot started' });
+export async function startStrategy(_req: Request, res: Response) {
+  try {
+    await prisma.strategyConfig.updateMany({ data: { isActive: true } });
+    startBot();
+    res.json({ success: true, message: 'Bot started' });
+  } catch (err) {
+    console.error('[startStrategy] error', err);
+    res.status(500).json({ success: false, message: 'Failed to start bot' });
+  }
 }
 
-export function stopStrategy(_req: Request, res: Response) {
-  stopBot();
-  res.json({ success: true, message: 'Bot stopped' });
+export async function stopStrategy(_req: Request, res: Response) {
+  try {
+    await prisma.strategyConfig.updateMany({ data: { isActive: false } });
+    stopBot();
+    res.json({ success: true, message: 'Bot stopped' });
+  } catch (err) {
+    console.error('[stopStrategy] error', err);
+    res.status(500).json({ success: false, message: 'Failed to stop bot' });
+  }
 }
 
 export async function setStrategyConfig(req: Request, res: Response) {

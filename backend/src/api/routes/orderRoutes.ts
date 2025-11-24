@@ -2,11 +2,11 @@ import { Router } from 'express';
 import {
   cancelOrder,
   createOrder,
-  listOrders,
+  getLiveOrders,
 } from '../controllers/orderController';
 
 export const router = Router();
 
-router.get('/', listOrders);
+router.get('/', getLiveOrders);
 router.post('/create', createOrder);
 router.delete('/:id', cancelOrder);

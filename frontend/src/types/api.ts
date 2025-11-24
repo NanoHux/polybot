@@ -1,3 +1,26 @@
+export interface DashboardRewardPoint {
+  timestamp: string;
+  rewardAmount: number;
+}
+
+export interface DashboardAprPoint {
+  marketId: string;
+  label: string;
+  apr: number;
+  timestamp: string;
+}
+
+export interface ApiDashboardResponse {
+  running: boolean;
+  totalEquity: number;
+  totalRewards: number;
+  unrealizedPnl: number;
+  lastUpdated: string;
+  systemAlert?: string | null;
+  rewardHistory: DashboardRewardPoint[];
+  aprSeries: DashboardAprPoint[];
+}
+
 export interface ApiMarketSummary {
   id: number;
   marketId: string;
@@ -5,31 +28,22 @@ export interface ApiMarketSummary {
   status: string | null;
   minIncentiveSize: string | null;
   maxIncentiveSpread: string | null;
-  rewardPoolTotal: string | null;
+  expectedApr?: number | null;
+  myLiquidityShare?: number | null;
+  epochEnd?: string | null;
 }
 
-export interface ApiDashboardResponse {
-  totalEquity: number;
-  totalRewards: number;
-  realizedPnl: number;
-  unrealizedPnl: number;
-  running: boolean;
-  markets: ApiMarketKpi[];
-}
-
-export interface ApiMarketKpi {
-  marketId: string;
-  question: string | null;
-  currentApr: number | null;
-  myLiquidityShare: number | null;
-}
+export type OrderSide = 'BUY' | 'SELL';
 
 export interface ApiOrder {
-  id: number;
-  marketId: number;
-  outcomeId: string | null;
-  side: string;
-  price: string;
-  size: string;
+  id: string;
+  clobOrderId: string;
+  marketId: string;
+  question?: string | null;
+  side: OrderSide;
+  outcomeId: string;
   status: string;
+  price: number;
+  size: number;
+  placedAt: string;
 }

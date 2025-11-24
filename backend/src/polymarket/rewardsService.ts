@@ -8,12 +8,19 @@ export class RewardsService {
   });
 
   async getMarketReward(marketId: string) {
-    const { data } = await this.client.get<{
-      epochStart: string;
-      epochEnd: string;
-      rewardPool: string;
-    }>(`/rewards/market/${marketId}`);
-
-    return data;
+    try {
+      const { data } = await this.client.get<{
+        epochStart: string;
+        epochEnd: string;
+        rewardPool: string;
+      }>(`/rewards/market/${marketId}`);
+      return data;
+    } catch (err: any) {
+      if (err.response && err.response.status === 404) {
+        // Market has no rewards configured
+        return null;
+      }
+      throw err;
+    }
   }
 }
