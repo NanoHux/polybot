@@ -1,0 +1,165 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum OrderSide {
+  BUY
+  SELL
+}
+
+enum OrderStatus {
+  OPEN
+  PARTIALLY_FILLED
+  FILLED
+  CANCELLED
+}
+
+enum LogLevel {
+  INFO
+  WARN
+  ERROR
+}
+
+model Wallet {
+  id        Int      @id @default(autoincrement())
+  address   String   @unique
+  label     String?
+
+  orders    Order[]
+  rewards   LiquidityReward[]
+  pnl       PnlSnapshot[]
+
+  createdAt DateTime @default(now())
+}
+
+model Market {
+  id             Int       @id @default(autoincrement())
+  marketId       String    @unique
+  question       String?
+  slug           String?
+  outcomeYesId   String?
+  outcomeNoId    String?
+  category       String?
+  tags           String[]
+  status         String?
+  startsAt       DateTime?
+  endsAt         DateTime?
+
+  incentiveConfigs MarketIncentiveConfig[]
+  orders           Order[]
+  rewards          LiquidityReward[]
+  orderBookSnaps   OrderBookSnapshot[]
+
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+}
+
+model MarketIncentiveConfig {
+  id                 Int      @id @default(autoincrement())
+  market             Market   @relation(fields: [marketId], references: [id])
+  marketId           Int
+  minIncentiveSize   Decimal?
+  maxIncentiveSpread Decimal?
+  rewardPoolTotal    Decimal?
+  epochStart         DateTime?
+  epochEnd           DateTime?
+
+  raw                Json?
+
+  createdAt          DateTime @default(now())
+}
+
+model Order {
+  id                Int         @id @default(autoincrement())
+  wallet            Wallet      @relation(fields: [walletId], references: [id])
+  walletId          Int
+
+  market            Market      @relation(fields: [marketId], references: [id])
+  marketId          Int
+
+  clobOrderId       String?     @unique
+  outcomeId         String?
+  side              OrderSide
+  price             Decimal
+  size              Decimal
+  filledSize        Decimal     @default(0)
+  status            OrderStatus @default(OPEN)
+  isStrategyManaged Boolean     @default(true)
+
+  placedAt          DateTime
+  updatedAt         DateTime    @updatedAt
+  raw               Json?
+}
+
+model OrderBookSnapshot {
+  id          Int      @id @default(autoincrement())
+  market      Market   @relation(fields: [marketId], references: [id])
+  marketId    Int
+
+  capturedAt  DateTime
+  bestBid     Decimal?
+  bestAsk     Decimal?
+  midPrice    Decimal?
+  depthJson   Json?
+
+  createdAt   DateTime @default(now())
+}
+
+model LiquidityReward {
+  id           Int      @id @default(autoincrement())
+  wallet       Wallet   @relation(fields: [walletId], references: [id])
+  walletId     Int
+
+  market       Market   @relation(fields: [marketId], references: [id])
+  marketId     Int
+
+  epochStart   DateTime
+  epochEnd     DateTime
+  rewardAmount Decimal   @default(0)
+  rewardToken  String    @default("USDC")
+  raw          Json?
+
+  createdAt    DateTime @default(now())
+}
+
+model PnlSnapshot {
+  id            Int      @id @default(autoincrement())
+  wallet        Wallet   @relation(fields: [walletId], references: [id])
+  walletId      Int
+
+  capturedAt    DateTime
+  totalEquity   Decimal?
+  totalRewards  Decimal?
+  realizedPnl   Decimal?
+  unrealizedPnl Decimal?
+
+  createdAt     DateTime @default(now())
+}
+
+model StrategyConfig {
+  id                  Int      @id @default(autoincrement())
+  name                String   @unique
+  isActive            Boolean  @default(true)
+
+  maxCapitalPerMarket Decimal?
+  minExpectedApr      Decimal?
+  allowedTags         String[]
+
+  params              Json?
+
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @updatedAt
+}
+
+model RunLog {
+  id        Int      @id @default(autoincrement())
+  runAt     DateTime @default(now())
+  level     LogLevel @default(INFO)
+  message   String
+  details   Json?
+}

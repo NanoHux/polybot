@@ -1,0 +1,11 @@
+{
+  "name": "polybot",
+  "private": true,
+  "version": "0.1.0",
+  "scripts": {
+    "dev:server": "npm --prefix backend run dev",
+    "dev:web": "npm --prefix frontend run dev",
+    "build:server": "npm --prefix backend run build",
+    "build:web": "npm --prefix frontend run build"
+  }
+}
